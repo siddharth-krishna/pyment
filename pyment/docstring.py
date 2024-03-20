@@ -1370,7 +1370,7 @@ class DocString(object):
         self.generated_docs = False
         self._options = {
             'hint_rtype_priority': True,  # priority in type hint else in docstring
-            'hint_type_priority': True,  # priority in type hint else in docstring
+            'hint_type_priority': False,  # priority in type hint else in docstring
             'rst_type_in_param_priority': True,  # in reST docstring priority on type present in param else on type
         }
 
@@ -1896,16 +1896,26 @@ class DocString(object):
                 'type': param_type,
             } for name, desc, param_type in self.docs['in']['params']
         }
+        # If there are no param descriptions in docstring, don't create params based on signature
+        # if the --convert flag is used TODO
+        if not docs_params:
+            return
         for name in sig_params:
             # WARNING: Note that if a param in docstring isn't in the signature params, it will be dropped
             sig_type, sig_default = sig_params[name]['type'], sig_params[name]['default']
             out_description = ""
-            out_type = sig_type if sig_type else None
+            out_type = None
             out_default = sig_default if sig_default else None
             if name in docs_params:
                 out_description = docs_params[name]['description']
-                if not out_type or (not self._options['hint_type_priority'] and docs_params[name]['type']):
-                    out_type = docs_params[name]['type']
+                docs_type = docs_params[name]['type']
+                # If sig type has priority, use it
+                if self._options['hint_type_priority']:
+                    out_type = sig_type if sig_type else docs_type
+                # Else, don't add a type to docstring unless incoming docstring had a type
+                else:
+                    out_type = docs_type
+                # if not out_type or (not self._options['hint_type_priority'] and docs_type):
             self.docs['out']['params'].append((name, out_description, out_type, out_default))
 
     def _set_raises(self):
@@ -1964,9 +1974,9 @@ class DocString(object):
                                                     l for i, l in enumerate(s.splitlines())])
             raw += self.dst.numpydoc.get_key_section_header('param', self.docs['out']['spaces'])
             for p in self.docs['out']['params']:
-                raw += self.docs['out']['spaces'] + p[0] + ' :'
+                raw += self.docs['out']['spaces'] + p[0]
                 if p[2] is not None and len(p[2]) > 0:
-                    raw += ' ' + p[2]
+                    raw += ' : ' + p[2]
                 raw += '\n'
                 raw += self.docs['out']['spaces'] + spaces + with_space(p[1]).strip()
                 if len(p) > 2:
